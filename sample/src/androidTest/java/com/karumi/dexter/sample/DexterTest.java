@@ -120,7 +120,7 @@ public class DexterTest {
     }
 
     private void block() {
-        await().atMost(30, TimeUnit.SECONDS).untilTrue(unblock);
+        await().atMost(2, TimeUnit.MINUTES).untilTrue(unblock);
         unblock.set(false);
     }
 }
