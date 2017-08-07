@@ -3,10 +3,14 @@ package com.karumi.dexter.sample;
 import android.Manifest;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.support.test.InstrumentationRegistry;
 import android.support.test.rule.ActivityTestRule;
 import android.support.test.runner.AndroidJUnit4;
+import android.support.test.uiautomator.UiDevice;
+import android.support.test.uiautomator.UiObject;
+import android.support.test.uiautomator.UiObjectNotFoundException;
+import android.support.test.uiautomator.UiSelector;
 import android.util.Log;
-
 import com.karumi.dexter.Dexter;
 import com.karumi.dexter.listener.DexterError;
 import com.karumi.dexter.listener.PermissionDeniedResponse;
@@ -14,15 +18,13 @@ import com.karumi.dexter.listener.PermissionGrantedResponse;
 import com.karumi.dexter.listener.PermissionRequestErrorListener;
 import com.karumi.dexter.listener.single.BasePermissionListener;
 import com.karumi.dexter.listener.single.PermissionListener;
-
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -71,19 +73,14 @@ public class DexterTest {
     @Test
     public void testWithLooper() {
         final AtomicBoolean milestone = new AtomicBoolean(false);
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                getPermission(Manifest.permission.CAMERA);
-                Log.d(TAG, "Permission are asked");
-                milestone.set(true);
-            }
-        });
+
+        requestAndAcceptPermissionOnHandlerThread(milestone, Manifest.permission.CAMERA);
+
         block();
         assertThat(milestone.get(), is(true));
     }
 
-    private void getPermission(String permission) {
+  private void getPermission(String permission) {
         Dexter.withActivity(activityTestRule.getActivity())
             .withPermission(permission)
             .withListener(permissionListener)
@@ -92,12 +89,38 @@ public class DexterTest {
             .check();
     }
 
+  private void requestAndAcceptPermissionOnHandlerThread(
+      final AtomicBoolean milestone,
+      final String permission) {
+    handler.post(new Runnable() {
+      @Override
+      public void run() {
+        getPermission(permission);
+        acceptCurrentPermissionsDialog();
+        Log.d(TAG, "Permission are asked");
+        milestone.set(true);
+      }
+    });
+  }
+
+  private void acceptCurrentPermissionsDialog() {
+    UiDevice device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+    UiObject allowPermissionsButton = device.findObject(new UiSelector().text("Allow"));
+    if (allowPermissionsButton.exists()) {
+      try {
+        allowPermissionsButton.click();
+      } catch (UiObjectNotFoundException e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
     private void unblock() {
         unblock.set(true);
     }
 
     private void block() {
-        await().atMost(10, TimeUnit.MINUTES).untilTrue(unblock);
+        await().atMost(30, TimeUnit.SECONDS).untilTrue(unblock);
         unblock.set(false);
     }
 }
